@@ -99,20 +99,22 @@ int main() {
 
     constexpr Idx M = 4, K = 4, N = 4;
     
-    // Use simple deterministic values instead of random for debugging
     std::vector<float> A(M*K);
     std::vector<float> B(K*N);
     
-    // Fill with simple values: A = identity matrix, B = matrix with 1,2,3,4 in first row
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::uniform_real_distribution<float> dis(0.0f, 10.0f);
+    
     for(Idx i = 0; i < M; ++i) {
         for(Idx j = 0; j < K; ++j) {
-            A[i * K + j] = (i == j) ? 1.0f : 0.0f;
+            A[i * K + j] = dis(gen);
         }
     }
     
     for(Idx i = 0; i < K; ++i) {
         for(Idx j = 0; j < N; ++j) {
-            B[i * N + j] = static_cast<float>(j + 1);  // Column j gets value j+1
+            B[i * N + j] = dis(gen);
         }
     }
     
