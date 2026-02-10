@@ -21,11 +21,6 @@
 
 using Dim = alpaka::DimInt<2>;
 using Idx = std::size_t;
-
-std::vector<float> runMatMulCpu(
-    const std::vector<float>& A,
-    const std::vector<float>& B,
-    size_t M, size_t N, size_t K);
     
 void printMatrix(const std::vector<float>& mat, Idx rows, Idx cols, const std::string& name) {
     std::cout << "\n" << name << " (" << rows << "x" << cols << "):" << std::endl;
@@ -35,6 +30,69 @@ void printMatrix(const std::vector<float>& mat, Idx rows, Idx cols, const std::s
         }
         std::cout << std::endl;
     }
+}
+
+void compareResults(const std::vector<float>& C_cpu, const std::vector<float>& C_gpu, 
+                    Idx M, Idx N) {
+    std::cout << "\n=== Comparing CPU vs GPU Results ===" << std::endl;
+    
+    if(C_cpu.size() != C_gpu.size()) {
+        std::cout << "ERROR: Size mismatch! CPU size: " << C_cpu.size() 
+                  << ", GPU size: " << C_gpu.size() << std::endl;
+        return;
+    }
+    
+    bool identical = true;
+    float max_abs_diff = 0.0f;
+    float max_rel_diff = 0.0f;
+    Idx num_differences = 0;
+    Idx max_diff_idx = 0;
+    
+    for(Idx i = 0; i < M * N; ++i) {
+        float abs_diff = std::abs(C_cpu[i] - C_gpu[i]);
+        
+        // Check for bit-exact equality
+        if(C_cpu[i] != C_gpu[i]) {
+            identical = false;
+            num_differences++;
+            
+            // Track maximum absolute difference
+            if(abs_diff > max_abs_diff) {
+                max_abs_diff = abs_diff;
+                max_diff_idx = i;
+            }
+            
+            // Calculate relative difference (avoid division by zero)
+            float denominator = std::max(std::abs(C_cpu[i]), 1e-10f);
+            float rel_diff = abs_diff / denominator;
+            max_rel_diff = std::max(max_rel_diff, rel_diff);
+        }
+    }
+    
+    if(identical) {
+        std::cout << "✓ PASS: Results are BIT-EXACT identical!" << std::endl;
+        std::cout << "  All " << M * N << " elements match exactly." << std::endl;
+    } else {
+        std::cout << "✗ FAIL: Results differ!" << std::endl;
+        std::cout << "  Number of differences: " << num_differences << " / " << M * N 
+                  << " (" << std::fixed << std::setprecision(2) 
+                  << (100.0 * num_differences / (M * N)) << "%)" << std::endl;
+        std::cout << "  Maximum absolute difference: " << std::scientific << std::setprecision(6) 
+                  << max_abs_diff << std::endl;
+        std::cout << "  Maximum relative difference: " << std::scientific << std::setprecision(6) 
+                  << max_rel_diff << std::endl;
+        
+        Idx row = max_diff_idx / N;
+        Idx col = max_diff_idx % N;
+        std::cout << "  Largest difference at position [" << row << ", " << col << "]:" << std::endl;
+        std::cout << "    CPU value: " << std::fixed << std::setprecision(10) 
+                  << C_cpu[max_diff_idx] << std::endl;
+        std::cout << "    GPU value: " << std::fixed << std::setprecision(10) 
+                  << C_gpu[max_diff_idx] << std::endl;
+        std::cout << "    Difference: " << std::scientific << std::setprecision(6) 
+                  << (C_gpu[max_diff_idx] - C_cpu[max_diff_idx]) << std::endl;
+    }
+    std::cout << "=====================================" << std::endl;
 }
 
 int main() {
@@ -72,6 +130,7 @@ int main() {
     auto C_gpu = runMatMulGpu<alpaka::TagGpuCudaRt>(A, B, M, N, K);
     std::cout << "GPU Result:" << std::endl;
     printMatrix(C_gpu, M, N, "Matrix C (GPU)");
+    compareResults(C_cpu, C_gpu, M, N);
 #else
     std::cout << "GPU support not enabled (compile with ENABLE_CUDA=ON)" << std::endl;
 #endif
